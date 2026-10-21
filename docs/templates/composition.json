@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "id": "my-composition",
+  "title": "Новая композиция",
+  "viewBox": [
+    1920,
+    793
+  ],
+  "style": {
+    "stroke": "#e04050",
+    "background": "#1a1d24",
+    "strokeWidth": 3,
+    "opacity": 0.6
+  },
+  "motion": {
+    "mode": "arrow-field",
+    "secondsPerStep": 1.5,
+    "fadeIn": 0.65,
+    "fadeOut": 1.5
+  },
+  "basePath": [
+    [
+      -120,
+      220
+    ],
+    [
+      960,
+      60
+    ],
+    [
+      2040,
+      220
+    ]
+  ],
+  "lineCount": 26,
+  "perspective": 3.5,
+  "arrows": [
+    {
+      "id": "flow-1",
+      "vertex": 0,
+      "from": [
+        -120,
+        220
+      ],
+      "to": [
+        80,
+        750
+      ]
+    },
+    {
+      "id": "flow-2",
+      "vertex": 1,
+      "from": [
+        960,
+        60
+      ],
+      "to": [
+        960,
+        690
+      ]
+    },
+    {
+      "id": "flow-3",
+      "vertex": 2,
+      "from": [
+        2040,
+        220
+      ],
+      "to": [
+        1840,
+        750
+      ]
+    }
+  ]
+}

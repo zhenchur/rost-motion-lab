@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Motion composition v1",
+  "description": "Structural schema. validateComposition also checks cross-field geometry, arrow consistency, total point count, and loop exit visibility.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "id",
+    "title",
+    "viewBox",
+    "style",
+    "motion",
+    "arrows"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 64
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "\\S"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "\\S"
+    },
+    "viewBox": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 16384
+        }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stroke",
+        "background",
+        "strokeWidth",
+        "opacity"
+      ],
+      "properties": {
+        "stroke": {
+          "$ref": "#/$defs/color"
+        },
+        "background": {
+          "$ref": "#/$defs/color"
+        },
+        "strokeWidth": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 24
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "motion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "secondsPerStep",
+        "fadeIn"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "sampled-rows",
+            "arrow-field"
+          ]
+        },
+        "secondsPerStep": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 60
+        },
+        "fadeIn": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 4
+        },
+        "fadeOut": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "Default: 0 for sampled-rows; 1 for arrow-field. Measured in line steps."
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 80,
+      "items": {
+        "$ref": "#/$defs/path"
+      }
+    },
+    "basePath": {
+      "$ref": "#/$defs/path"
+    },
+    "lineCount": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 80
+    },
+    "perspective": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "arrows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "$ref": "#/$defs/arrow"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "motion": {
+            "properties": {
+              "mode": {
+                "const": "sampled-rows"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "rows"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "basePath"
+              ]
+            },
+            {
+              "required": [
+                "lineCount"
+              ]
+            },
+            {
+              "required": [
+                "perspective"
+              ]
+            }
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "basePath",
+          "lineCount",
+          "perspective"
+        ],
+        "not": {
+          "required": [
+            "rows"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "coordinate": {
+      "type": "number",
+      "minimum": -1000000,
+      "maximum": 1000000
+    },
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/coordinate"
+        },
+        {
+          "$ref": "#/$defs/coordinate"
+        }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "path": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/point"
+      },
+      "minItems": 2,
+      "maxItems": 128
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "arrow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "vertex",
+        "from",
+        "to"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "\\S"
+        },
+        "vertex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "from": {
+          "$ref": "#/$defs/point"
+        },
+        "to": {
+          "$ref": "#/$defs/point"
+        }
+      }
+    }
+  }
+}

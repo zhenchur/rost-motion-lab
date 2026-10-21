@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+.qa/
+
+handoff/
+artifacts/
+.exports/
+*.mp4
+.env
+.env.*
+!.env.example

@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import ffmpegPath from 'ffmpeg-static';
+import { createMotionModel } from '../src/motion/model.js';
+import { getComposition } from '../src/compositions/registry.js';
+import { planVideo, phaseForFrame, pngForFrame, renderMp4 } from './render-mp4.mjs';
+
+const composition = getComposition('rost-fold');
+const model = createMotionModel(composition);
+const options = { fps: 12, duration: 3, inverted: true };
+const plan = planVideo(model, options);
+assert.equal(plan.videoWidth % 2, 0);
+assert.equal(plan.videoHeight % 2, 0);
+assert.equal(plan.frameCount % plan.cycleFrames, 0);
+assert.equal(plan.direction, -model.direction);
+assert.ok(phaseForFrame(1, plan) < phaseForFrame(0, plan), 'Inversion reverses frame phase');
+const hash = png => createHash('sha256').update(png).digest('hex');
+assert.equal(hash(pngForFrame(model, 0, plan)), hash(pngForFrame(model, plan.frameCount, plan)), 'Source raster repeats exactly after the planned duration');
+assert.notEqual(hash(pngForFrame(model, 0, plan)), hash(pngForFrame(model, plan.frameCount - 1, plan)), 'Last frame does not duplicate the first');
+assert.throws(() => planVideo(model, { fps: 1000 }));
+assert.throws(() => planVideo(model, { seconds: 20, duration: 30 }));
+assert.throws(() => planVideo(model, { inventedOption: true }));
+
+const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'rost-mp4-test-'));
+const output = path.join(directory, 'test.mp4');
+try {
+  const metadata = await renderMp4({ composition, output, options });
+  assert.ok(metadata.bytes > 1000);
+  assert.equal(metadata.frameCount, plan.frameCount);
+  const buffer = await fs.readFile(output);
+  assert.equal(buffer.subarray(4, 8).toString(), 'ftyp', 'Real ISO-BMFF/MP4 file');
+  assert.ok(buffer.indexOf(Buffer.from('avc1')) > 0, 'AVC/H.264 sample entry');
+  const moov = buffer.indexOf(Buffer.from('moov'));
+  const mdat = buffer.indexOf(Buffer.from('mdat'));
+  assert.ok(moov > 0 && moov < mdat, 'faststart places metadata ahead of media');
+  let diagnostics = '', progress = '';
+  const child = spawn(ffmpegPath, ['-hide_banner', '-i', output, '-map', '0:v:0', '-f', 'null', '-', '-progress', 'pipe:1', '-nostats'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  child.stdout.on('data', chunk => { progress += chunk; });
+  child.stderr.on('data', chunk => { diagnostics += chunk; });
+  await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', code => code === 0 ? resolve() : reject(new Error(diagnostics))); });
+  assert.match(diagnostics, /Video: h264/);
+  assert.match(diagnostics, /yuv420p/);
+  assert.ok(diagnostics.includes(`${plan.videoWidth}x${plan.videoHeight}`));
+  const frames = [...progress.matchAll(/^frame=(\d+)$/gm)].map(match => Number(match[1]));
+  assert.equal(frames.at(-1), plan.frameCount, 'Every planned frame decodes successfully');
+  assert.match(progress, /progress=end/);
+  const duration = diagnostics.match(/Duration: (\d+):(\d+):([\d.]+)/);
+  assert.ok(duration);
+  assert.ok(Math.abs(Number(duration[1]) * 3600 + Number(duration[2]) * 60 + Number(duration[3]) - plan.duration) < .02);
+  await assert.rejects(renderMp4({ composition, output, options }), /уже существует/);
+  console.log(`MP4 verified: H.264/yuv420p, ${plan.videoWidth}×${plan.videoHeight}, ${plan.fps} FPS, ${plan.frameCount} decoded frames, ${plan.duration}s, ${metadata.bytes} bytes.`);
+  console.log('Loop raster, reverse direction, limits, existing-file protection, and faststart passed.');
+} finally {
+  const resolved = path.resolve(directory);
+  assert.equal(path.dirname(resolved), path.resolve(os.tmpdir()));
+  assert.ok(path.basename(resolved).startsWith('rost-mp4-test-'));
+  await fs.rm(resolved, { recursive: true, force: true });
+}

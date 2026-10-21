@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Р.О.С.Т. — Motion Lab</title></head>
+<body>
+  <main>
+    <header><span class="brand">Р.О.С.Т.</span><span class="caption">ПО СТРЕЛКАМ</span><button id="clean" class="quiet">Только паттерн ↗</button></header>
+    <nav class="composition-controls" aria-label="Композиции">
+      <label>Композиция <select id="composition"></select></label><button id="arrows" aria-pressed="false">Показать стрелки</button>
+      <div class="composition-files"><button id="json-import" class="quiet">Загрузить композицию ↑</button><button id="json-export" class="quiet">Сохранить композицию ↓</button></div>
+      <input id="composition-file" type="file" accept=".json,application/json" hidden/>
+    </nav>
+    <section class="stage" aria-label="Анимация линейного паттерна"><svg id="pattern" viewBox="0 0 1920 793" role="img" aria-label="Анимация линий"></svg></section>
+    <footer>
+      <div class="controls"><button id="toggle" aria-pressed="false">Пауза</button><button id="invert" aria-pressed="false">Инверсия: выкл.</button>
+        <label>Скорость <input id="speed" type="range" min="0.25" max="2" step="0.05" value="1"/><output id="speed-value">1×</output></label>
+        <label>Толщина <input id="width" type="range" min="0.25" max="24" step="0.25" value="3"/><output id="width-value">3 px</output></label>
+      </div>
+      <div class="exports"><button id="svg-static" class="quiet">SVG · кадр ↓</button><button id="svg-motion" class="quiet">SVG · анимация ↓</button><button id="mp4-export">MP4 ↓</button></div>
+    </footer>
+    <p class="hint"><span id="direction-note"></span> <span id="motion-note"></span></p><p id="status" role="status" aria-live="polite"></p>
+  </main>
+  <button id="exit-clean" hidden>Вернуть настройки ↙</button><script type="module" src="/src/main.js"></script>
+</body>
+</html>

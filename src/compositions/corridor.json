@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "id": "corridor",
+  "title": "Коридор / веер линий",
+  "viewBox": [
+    1920,
+    793
+  ],
+  "style": {
+    "stroke": "#dd192d",
+    "background": "#1a1d24",
+    "strokeWidth": 3,
+    "opacity": 0.6
+  },
+  "motion": {
+    "mode": "arrow-field",
+    "secondsPerStep": 1.5,
+    "fadeIn": 0.65,
+    "fadeOut": 1.5
+  },
+  "basePath": [
+    [
+      120,
+      160
+    ],
+    [
+      640,
+      90
+    ],
+    [
+      1280,
+      90
+    ],
+    [
+      1800,
+      160
+    ]
+  ],
+  "lineCount": 26,
+  "perspective": 4,
+  "arrows": [
+    {
+      "id": "flow-1",
+      "vertex": 0,
+      "from": [
+        120,
+        160
+      ],
+      "to": [
+        50,
+        750
+      ]
+    },
+    {
+      "id": "flow-2",
+      "vertex": 1,
+      "from": [
+        640,
+        90
+      ],
+      "to": [
+        400,
+        680
+      ]
+    },
+    {
+      "id": "flow-3",
+      "vertex": 2,
+      "from": [
+        1280,
+        90
+      ],
+      "to": [
+        1520,
+        680
+      ]
+    },
+    {
+      "id": "flow-4",
+      "vertex": 3,
+      "from": [
+        1800,
+        160
+      ],
+      "to": [
+        1870,
+        750
+      ]
+    }
+  ]
+}
