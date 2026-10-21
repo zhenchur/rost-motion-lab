@@ -13,6 +13,9 @@ selector.replaceChildren(...compositions.map(composition => {
   return option;
 }));
 $('#composition-controls').hidden = compositions.length < 2;
+const requestedComposition = new URLSearchParams(location.search).get('composition');
+const initialComposition = compositions.find(composition => composition.id === requestedComposition) ?? compositions.at(-1);
+selector.value = initialComposition.id;
 
 function sync(state, model) {
   $('#toggle').textContent = state.paused ? 'Воспроизвести' : 'Пауза'; $('#toggle').setAttribute('aria-pressed', String(state.paused));
@@ -25,7 +28,7 @@ function sync(state, model) {
   $('#direction-note').textContent = `${model.composition.title} · ${direction}`;
   $('#motion-note').textContent = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'Уменьшение движения включено в системе.' : '';
 }
-const player = createMotionPlayer(svg, createMotionModel(compositions[0]), sync);
+const player = createMotionPlayer(svg, createMotionModel(initialComposition), sync);
 function message(text, error = false) { $('#status').textContent = text; $('#status').classList.toggle('error', error); }
 $('#toggle').addEventListener('click', () => player.setPaused(!player.state.paused), eventOptions);
 $('#invert').addEventListener('click', () => player.setInverted(!player.state.inverted), eventOptions);

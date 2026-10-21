@@ -40,7 +40,7 @@ export function createMotionPlayer(svg, initialModel, onChange = () => {}) {
     get state() { return { ...state }; }, get model() { return model; }, get reducedMotion() { return media.matches; },
     setModel(next, { preserve = false } = {}) {
       model = next;
-      if (!preserve) { state.phase = 0; state.width = model.strokeWidth; state.inverted = false; }
+      if (!preserve) { state.phase = 0; state.inverted = false; }
       const clockPhase = clock.phase;
       tween.pause().duration(model.seconds).totalTime(clockPhase * model.seconds, true);
       phaseOffset = state.phase - direction() * clockPhase; mount(); syncPlayback();
