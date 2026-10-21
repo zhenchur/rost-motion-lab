@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "node scripts/export.mjs && vite build && node scripts/standalone.mjs",
-    "test": "node scripts/verify.mjs && node scripts/verify-compositions.mjs && node scripts/verify-pattern-profile.mjs",
+    "test": "node scripts/verify.mjs && node scripts/verify-compositions.mjs && node scripts/verify-pattern-profile.mjs && node scripts/verify-density.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "export:mp4": "node scripts/render-mp4.mjs",
     "test:mp4": "node scripts/verify-mp4.mjs"

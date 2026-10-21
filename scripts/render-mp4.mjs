@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { Resvg } from '@resvg/resvg-js';
 import ffmpegPath from 'ffmpeg-static';
-import { createMotionModel } from '../src/motion/model.js';
+import { createMotionModel, LIMITS } from '../src/motion/model.js';
 
 export const VIDEO_LIMITS = Object.freeze({ maxWidth: 1920, maxHeight: 1080, maxDuration: 30, maxFrames: 1800, timeoutMs: 300_000 });
 const numeric = (value, name, min, max) => {
@@ -17,11 +17,12 @@ const numeric = (value, name, min, max) => {
 /** Deterministic frame plan. The last frame precedes the seam, never duplicates it. */
 export function planVideo(model, options = {}) {
   if (!options || typeof options !== 'object' || Array.isArray(options)) throw new Error('options: ожидается объект');
-  const allowed = ['width', 'seconds', 'inverted', 'fps', 'duration'];
+  const allowed = ['width', 'seconds', 'density', 'inverted', 'fps', 'duration'];
   for (const key of Object.keys(options)) if (!allowed.includes(key)) throw new Error(`options.${key}: неизвестная настройка`);
   const fps = numeric(options.fps ?? 30, 'fps', 12, 60);
   if (!Number.isInteger(fps)) throw new Error('fps: ожидается целое число');
-  const requestedCycle = numeric(options.seconds ?? model.seconds, 'seconds', .05, VIDEO_LIMITS.maxDuration);
+  const density = numeric(options.density === undefined ? model.density ?? 1 : options.density, 'density', LIMITS.minDensity, LIMITS.maxDensity);
+  const requestedCycle = numeric(options.seconds ?? model.composition.motion.secondsPerStep / density, 'seconds', .05, VIDEO_LIMITS.maxDuration);
   const requestedDuration = numeric(options.duration ?? 6, 'duration', .05, VIDEO_LIMITS.maxDuration);
   const strokeWidth = numeric(options.width ?? model.strokeWidth, 'width', .25, 24);
   const inverted = options.inverted ?? false;
@@ -40,7 +41,7 @@ export function planVideo(model, options = {}) {
   return Object.freeze({ fps, requestedCycle, cycleFrames, cycleSeconds, cycles, frameCount,
     duration: frameCount / fps, rasterWidth, rasterHeight,
     videoWidth: rasterWidth + rasterWidth % 2, videoHeight: rasterHeight + rasterHeight % 2,
-    strokeWidth, inverted, direction: model.direction * (inverted ? -1 : 1) });
+    strokeWidth, density, inverted, direction: model.direction * (inverted ? -1 : 1) });
 }
 
 export function phaseForFrame(frame, plan) {
@@ -49,7 +50,7 @@ export function phaseForFrame(frame, plan) {
 }
 
 export function svgForFrame(model, frame, plan) {
-  return model.staticSvg({ phase: phaseForFrame(frame, plan), width: plan.strokeWidth, background: true })
+  return model.staticSvg({ phase: phaseForFrame(frame, plan), width: plan.strokeWidth, density: plan.density, background: true })
     .replace(`width="${model.width}" height="${model.height}"`, `width="${plan.rasterWidth}" height="${plan.rasterHeight}"`);
 }
 
@@ -119,14 +120,14 @@ export async function renderMp4({ composition, output, options = {}, overwrite =
 async function cli() {
   const argv = process.argv.slice(2);
   if (argv.includes('--help')) {
-    console.log('node scripts/render-mp4.mjs --composition rost-fold [--output artifacts/rost-fold.mp4] [--duration 6] [--fps 30] [--seconds 1.5] [--width 3] [--inverted] [--overwrite]\n--composition принимает ID из реестра или путь к JSON.');
+    console.log('node scripts/render-mp4.mjs --composition rost-fold [--output artifacts/rost-fold.mp4] [--duration 6] [--fps 30] [--seconds 1.5] [--width 3] [--density 1] [--inverted] [--overwrite]\n--composition принимает ID из реестра или путь к JSON. --density: 0.5–2. --seconds: итоговое время одного цикла.');
     return;
   }
   const args = {};
   for (let i = 0; i < argv.length; i++) {
     const key = argv[i];
     if (key === '--inverted' || key === '--overwrite') { args[key.slice(2)] = true; continue; }
-    if (!['--composition', '--output', '--duration', '--fps', '--seconds', '--width'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error(`Неизвестный или неполный аргумент: ${key}`);
+    if (!['--composition', '--output', '--duration', '--fps', '--seconds', '--width', '--density'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error(`Неизвестный или неполный аргумент: ${key}`);
     args[key.slice(2)] = argv[++i];
   }
   let composition;
@@ -141,7 +142,7 @@ async function cli() {
     if (!composition) throw new Error(`Не найдена композиция ${name}`);
   }
   const options = { inverted: !!args.inverted };
-  for (const name of ['duration', 'fps', 'seconds', 'width']) if (args[name] !== undefined) options[name] = Number(args[name]);
+  for (const name of ['duration', 'fps', 'seconds', 'width', 'density']) if (args[name] !== undefined) options[name] = Number(args[name]);
   let reported = -1;
   const result = await renderMp4({ composition, options, output: args.output ?? `artifacts/${composition.id}.mp4`, overwrite: !!args.overwrite,
     onProgress(value) { const percent = Math.floor(value * 10) * 10; if (percent !== reported) { reported = percent; console.log(`MP4: ${percent}%`); } } });

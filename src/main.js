@@ -21,6 +21,8 @@ function sync(state, model) {
   $('#toggle').textContent = state.paused ? 'Воспроизвести' : 'Пауза'; $('#toggle').setAttribute('aria-pressed', String(state.paused));
   $('#invert').textContent = state.inverted ? 'Инверсия: вкл.' : 'Инверсия: выкл.'; $('#invert').setAttribute('aria-pressed', String(state.inverted));
   $('#speed').value = state.speed; $('#width').value = state.width; $('#speed-value').textContent = `${Number(state.speed.toFixed(2))}×`; $('#width-value').textContent = `${state.width} px`;
+  const densityPercent = Math.round(state.density * 100);
+  $('#density').value = densityPercent; $('#density-value').textContent = `${densityPercent}%`; $('#density').setAttribute('aria-valuetext', `${densityPercent}%`);
   $('.caption').textContent = state.inverted ? 'ОБРАТНОЕ ДВИЖЕНИЕ' : 'ДВИЖЕНИЕ ЛИНИЙ';
   $('.stage').style.aspectRatio = `${model.width} / ${model.height}`; $('.stage').style.background = model.background;
   const direction = state.inverted ? 'Обратное движение.' : 'Исходное направление.';
@@ -34,6 +36,7 @@ $('#toggle').addEventListener('click', () => player.setPaused(!player.state.paus
 $('#invert').addEventListener('click', () => player.setInverted(!player.state.inverted), eventOptions);
 $('#speed').addEventListener('input', event => player.setSpeed(Number(event.target.value)), eventOptions);
 $('#width').addEventListener('input', event => player.setWidth(Number(event.target.value)), eventOptions);
+$('#density').addEventListener('input', event => player.setDensity(Number(event.target.value) / 100), eventOptions);
 selector.addEventListener('change', () => {
   player.setModel(createMotionModel(compositions.find(composition => composition.id === selector.value)));
   message('');
@@ -41,7 +44,7 @@ selector.addEventListener('change', () => {
 function download(content, name, type = 'image/svg+xml') {
   const url = URL.createObjectURL(new Blob([content], { type })); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function exportOptions() { const state = player.state; return { width: state.width, seconds: player.model.seconds / state.speed, inverted: state.inverted, phase: state.phase }; }
+function exportOptions() { const state = player.state; return { width: state.width, density: state.density, seconds: player.model.seconds / state.speed, inverted: state.inverted, phase: state.phase }; }
 $('#svg-static').addEventListener('click', () => download(player.model.staticSvg(exportOptions()), `${player.model.composition.id}-strokes.svg`), eventOptions);
 $('#svg-motion').addEventListener('click', () => download(player.model.animatedSvg(exportOptions()), `${player.model.composition.id}-motion.svg`), eventOptions);
 $('#mp4-export').addEventListener('click', async () => {

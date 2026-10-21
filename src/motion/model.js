@@ -1,5 +1,5 @@
 /** Versioned, renderer-independent geometry. Units are SVG viewBox units. */
-export const LIMITS = Object.freeze({ maxLines: 80, maxPoints: 128, maxTotalPoints: 8192, maxCoordinate: 1e6, maxStroke: 24 });
+export const LIMITS = Object.freeze({ maxLines: 80, maxPoints: 128, maxTotalPoints: 8192, maxCoordinate: 1e6, maxStroke: 24, minDensity: .5, maxDensity: 2 });
 const MODES = ['sampled-rows', 'arrow-field'];
 const COLOR = /^#[\da-f]{6}$/i;
 const own = (value, field) => Object.hasOwn(value, field);
@@ -147,38 +147,51 @@ export function validateComposition(composition) {
   return composition;
 }
 
-export function createMotionModel(input) {
+export function createMotionModel(input, { density = 1 } = {}) {
   validateComposition(input);
   // Snapshot external JSON: editing an input object cannot change a running model.
   const composition = structuredClone(input);
   const [width, height] = composition.viewBox;
-  const lineCount = composition.motion.mode === 'sampled-rows' ? composition.rows.length : composition.lineCount;
+  const baseLineCount = composition.motion.mode === 'sampled-rows' ? composition.rows.length : composition.lineCount;
   const color = composition.style.stroke;
   const background = composition.style.background;
   const strokeWidth = composition.style.strokeWidth;
-  const seconds = composition.motion.secondsPerStep;
   const direction = arrowDirection(composition);
   const fadeOut = composition.motion.fadeOut ?? (composition.motion.mode === 'arrow-field' ? 1 : 0);
   const evaluate = geometryFor(composition);
-  function pointsAt(depth) {
-    number(depth, 'depth', 0, lineCount);
-    return evaluate(depth);
+  // Density changes sampling along the same trajectory. Fade zones and the
+  // physical velocity stay in original row units, including fractional counts.
+  function sampling(value) {
+    number(value, 'density', LIMITS.minDensity, LIMITS.maxDensity);
+    const lineCount = Math.ceil(baseLineCount * value);
+    const seconds = composition.motion.secondsPerStep / value;
+    const pointsAt = depth => {
+      number(depth, 'depth', 0, lineCount);
+      return evaluate(Math.min(depth / value, baseLineCount));
+    };
+    const pathAt = depth => pointsAt(depth).map((p, i) => `${i ? 'L' : 'M'}${p.map(coordinate => coordinate.toFixed(3)).join(' ')}`).join('');
+    const opacityAt = depth => {
+      number(depth, 'depth', 0, lineCount);
+      const sourceDepth = depth / value;
+      if (sourceDepth > baseLineCount) return 0;
+      return composition.style.opacity * smoothstep(sourceDepth / composition.motion.fadeIn)
+        * (fadeOut ? smoothstep((baseLineCount - sourceDepth) / fadeOut) : 1);
+    };
+    return { lineCount, seconds, pointsAt, pathAt, opacityAt };
   }
-  const pathAt = depth => pointsAt(depth).map((p, i) => `${i ? 'L' : 'M'}${p.map(value => value.toFixed(3)).join(' ')}`).join('');
-  const opacityAt = depth => {
-    number(depth, 'depth', 0, lineCount);
-    return composition.style.opacity * smoothstep(depth / composition.motion.fadeIn)
-      * (fadeOut ? smoothstep((lineCount - depth) / fadeOut) : 1);
-  };
+  const sampled = sampling(density);
+  const forDensity = value => value === density ? sampled : sampling(value);
   const svgStart = (title, showBackground) => `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none"><title>${escapeXml(title)}</title>${showBackground ? `<path fill="${background}" d="M0 0H${width}V${height}H0Z"/>` : ''}`;
-  function staticSvg({ width: weight = strokeWidth, phase = 0, background: showBackground = false, original = false } = {}) {
+  function staticSvg({ width: weight = strokeWidth, phase = 0, background: showBackground = false, original = false, density: outputDensity = density } = {}) {
     number(weight, 'strokeWidth', .25, LIMITS.maxStroke); number(phase, 'phase', 0, 1);
+    const { lineCount, pathAt, opacityAt } = forDensity(outputDensity);
     return svgStart(`${composition.title} — stroke`, showBackground)
       + `<g fill="none" stroke="${color}" stroke-width="${weight}" stroke-linejoin="miter" stroke-linecap="butt">`
-      + Array.from({ length: lineCount }, (_, i) => `<path d="${pathAt(i + phase)}" stroke-opacity="${original ? composition.style.opacity : opacityAt(i + phase).toFixed(5)}"/>`).join('') + '</g></svg>';
+      + Array.from({ length: lineCount }, (_, i) => `<path d="${pathAt(i + phase)}" stroke-opacity="${original && (i + phase) / outputDensity <= baseLineCount ? composition.style.opacity : opacityAt(i + phase).toFixed(5)}"/>`).join('') + '</g></svg>';
   }
-  function animatedSvg({ width: weight = strokeWidth, seconds: duration = seconds, background: showBackground = true, inverted = false } = {}) {
-    number(weight, 'strokeWidth', .25, LIMITS.maxStroke); number(duration, 'seconds', .05, 240);
+  function animatedSvg({ width: weight = strokeWidth, density: outputDensity = density, seconds: duration = composition.motion.secondsPerStep / outputDensity, background: showBackground = true, inverted = false } = {}) {
+    const { lineCount, pathAt, opacityAt } = forDensity(outputDensity);
+    number(weight, 'strokeWidth', .25, LIMITS.maxStroke); number(duration, 'seconds', .025, 480);
     if (typeof inverted !== 'boolean') fail('inverted', 'ожидается true или false');
     const times = Array.from({ length: 41 }, (_, i) => i / 40);
     const reverse = direction * (inverted ? -1 : 1) < 0;
@@ -191,5 +204,5 @@ export function createMotionModel(input) {
       + `<g class="motion" fill="none" stroke="${color}" stroke-width="${weight}" stroke-linejoin="miter">${paths}</g>`
       + `<g class="still" fill="none" stroke="${color}" stroke-width="${weight}" stroke-linejoin="miter">${still}</g></svg>`;
   }
-  return { composition, width, height, lineCount, color, background, strokeWidth, seconds, direction, pointsAt, pathAt, opacityAt, staticSvg, animatedSvg };
+  return { composition, width, height, baseLineCount, density, color, background, strokeWidth, direction, ...sampled, staticSvg, animatedSvg };
 }
