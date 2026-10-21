@@ -3,11 +3,9 @@
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Р.О.С.Т. — Motion Lab</title></head>
 <body>
   <main>
-    <header><span class="brand">Р.О.С.Т.</span><span class="caption">ПО СТРЕЛКАМ</span><button id="clean" class="quiet">Только паттерн ↗</button></header>
-    <nav class="composition-controls" aria-label="Композиции">
-      <label>Композиция <select id="composition"></select></label><button id="arrows" aria-pressed="false">Показать стрелки</button>
-      <div class="composition-files"><button id="json-import" class="quiet">Загрузить композицию ↑</button><button id="json-export" class="quiet">Сохранить композицию ↓</button></div>
-      <input id="composition-file" type="file" accept=".json,application/json" hidden/>
+    <header><span class="brand">Р.О.С.Т.</span><span class="caption">ДВИЖЕНИЕ ЛИНИЙ</span><button id="clean" class="quiet">Только паттерн ↗</button></header>
+    <nav id="composition-controls" class="composition-controls" aria-label="Композиции" hidden>
+      <label>Композиция <select id="composition"></select></label>
     </nav>
     <section class="stage" aria-label="Анимация линейного паттерна"><svg id="pattern" viewBox="0 0 1920 793" role="img" aria-label="Анимация линий"></svg></section>
     <footer>

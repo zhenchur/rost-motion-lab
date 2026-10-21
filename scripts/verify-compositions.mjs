@@ -10,9 +10,23 @@ const initialPaths = svg => [...svg.matchAll(/<path d="([^"]+)" stroke-opacity="
   .map(([, path, opacity]) => ({ path, opacity: Number(opacity) }));
 let geometrySamples = 0;
 
-for (const composition of compositions) {
+// Internal contract fixture only: this is not a scene, template or registry entry.
+const arrowFieldFixture = {
+  version: 1, id: 'test-arrow-field', title: 'Synthetic arrow-field contract',
+  viewBox: [100, 100], style: { stroke: '#dd192d', background: '#1a1d24', strokeWidth: 3, opacity: .6 },
+  motion: { mode: 'arrow-field', secondsPerStep: 1.5, fadeIn: .5, fadeOut: 1 },
+  basePath: [[10, 10], [90, 10]], lineCount: 4, perspective: 2,
+  arrows: [
+    { id: 'right', vertex: 1, from: [90, 10], to: [90, 90] },
+    { id: 'left', vertex: 0, from: [10, 10], to: [10, 90] },
+  ],
+};
+const reversedSource = getComposition('rost-fold');
+reversedSource.arrows.forEach(arrow => { [arrow.from, arrow.to] = [arrow.to, arrow.from]; });
+
+for (const composition of [...compositions, arrowFieldFixture, reversedSource]) {
   const model = createMotionModel(composition);
-  assert.equal(model.direction, 1);
+  assert.ok(model.direction === 1 || model.direction === -1, 'Both directions specified by arrows are supported');
   assert.equal(model.opacityAt(0), 0);
   for (let step = 0; step <= model.lineCount * 80; step++) {
     const depth = step / 80;
@@ -22,8 +36,9 @@ for (const composition of compositions) {
   }
   if (composition.motion.mode === 'arrow-field') {
     assert.deepEqual(model.pointsAt(0), composition.basePath, 'Each trajectory starts at its arrow tail');
-    assert.deepEqual(model.pointsAt(model.lineCount), composition.arrows.map(arrow => arrow.to), 'Each trajectory ends at its arrow head');
-    assert.equal(model.opacityAt(model.lineCount), 0, 'The end of an in-frame trajectory is invisible');
+    const endpoints = composition.arrows.toSorted((a, b) => a.vertex - b.vertex).map(arrow => arrow.to);
+    assert.deepEqual(model.pointsAt(model.lineCount), endpoints, 'Each trajectory ends at its arrow head, independently of arrow array order');
+    if ((composition.motion.fadeOut ?? 1) > 0) assert.equal(model.opacityAt(model.lineCount), 0, 'A trajectory with fadeOut ends invisibly');
     const start = model.pointsAt(1), next = model.pointsAt(2);
     for (const arrow of composition.arrows) {
       const velocity = next[arrow.vertex].map((value, axis) => value - start[arrow.vertex][axis]);
@@ -32,8 +47,10 @@ for (const composition of compositions) {
       assert.ok(Math.abs(velocity[0] * vector[1] - velocity[1] * vector[0]) < 1e-7, 'Trajectory is collinear with its arrow');
     }
   }
-  const forward = tracks(model.animatedSvg());
-  const reverse = tracks(model.animatedSvg({ inverted: true }));
+  // The seam comparison is ordered by increasing/decreasing depth, regardless
+  // of whether this composition's arrows specify forward or reverse playback.
+  const forward = tracks(model.animatedSvg({ inverted: model.direction < 0 }));
+  const reverse = tracks(model.animatedSvg({ inverted: model.direction > 0 }));
   assert.equal(forward.length, model.lineCount * 2);
   assert.equal(reverse.length, forward.length);
   for (let i = 0; i < forward.length; i++) {
@@ -64,14 +81,12 @@ for (let step = 0; step <= 2600; step++) {
   assert.ok(Math.abs(source.opacityAt(depth) - legacy.opacityAt(depth)) < 1e-14, 'Original opacity within floating-point roundoff');
 }
 assert.equal(source.seconds, 1.5);
-const reversedSource = getComposition('rost-fold');
-reversedSource.arrows.forEach(arrow => { [arrow.from, arrow.to] = [arrow.to, arrow.from]; });
 const reversed = createMotionModel(reversedSource);
 assert.equal(reversed.direction, -1, 'Reversing all sampled arrows changes playback direction');
 assert.deepEqual(tracks(reversed.animatedSvg()), tracks(source.animatedSvg({ inverted: true })));
 
 function rejects(id, mutate, pattern) {
-  const candidate = getComposition(id);
+  const candidate = typeof id === 'string' ? getComposition(id) : clone(id);
   mutate(candidate);
   assert.throws(() => validateComposition(candidate), pattern);
 }
@@ -79,26 +94,31 @@ rejects('rost-fold', c => { [c.arrows[0].from, c.arrows[0].to] = [c.arrows[0].to
 rejects('rost-fold', c => { c.arrows[0].to = [...c.arrows[0].from]; }, /длина/);
 rejects('rost-fold', c => { c.rows[0][0][0] = NaN; }, /число/);
 rejects('rost-fold', c => { c.rows[0].pop(); }, /одинаковое/);
-rejects('chevron', c => { c.arrows.pop(); }, /каждой/);
-rejects('chevron', c => { c.arrows[0].from[0] += 1; }, /начало стрелки/);
-rejects('chevron', c => { c.arrows[1].vertex = 0; }, /уникальны/);
-rejects('chevron', c => { c.motion.fadeOut = 0; }, /последняя линия/);
-rejects('chevron', c => { c.perspective = 0; }, /perspective/);
-rejects('chevron', c => { c.lineCount = 100000; }, /lineCount/);
-rejects('chevron', c => { c.style.stroke = 'red" onclick="alert(1)'; }, /#RRGGBB/);
-rejects('chevron', c => { c.version = 2; }, /версия 1/);
-rejects('chevron', c => { c.callback = 'eval'; }, /неизвестное/);
+rejects(arrowFieldFixture, c => { c.arrows.pop(); }, /каждой/);
+rejects(arrowFieldFixture, c => { c.arrows[0].from[0] += 1; }, /начало стрелки/);
+rejects(arrowFieldFixture, c => { c.arrows[1].vertex = c.arrows[0].vertex; }, /уникальны/);
+rejects(arrowFieldFixture, c => { c.motion.fadeOut = 0; }, /последняя линия/);
+rejects(arrowFieldFixture, c => { c.perspective = 0; }, /perspective/);
+rejects(arrowFieldFixture, c => { c.lineCount = 100000; }, /lineCount/);
+rejects(arrowFieldFixture, c => { c.style.stroke = 'red" onclick="alert(1)'; }, /#RRGGBB/);
+rejects(arrowFieldFixture, c => { c.version = 2; }, /версия 1/);
+rejects(arrowFieldFixture, c => { c.callback = 'eval'; }, /неизвестное/);
 assert.throws(() => source.animatedSvg({ seconds: NaN }), /число/);
 assert.throws(() => source.staticSvg({ width: '3" onload="alert(1)' }), /число/);
+const exitedArrowField = clone(arrowFieldFixture);
+exitedArrowField.motion.fadeOut = 0;
+exitedArrowField.arrows.forEach(arrow => { arrow.to[1] = 200; });
+assert.equal(createMotionModel(exitedArrowField).opacityAt(exitedArrowField.lineCount), exitedArrowField.style.opacity,
+  'An arrow-field trajectory that fully leaves the viewport does not require fadeOut');
 
-const maliciousTitle = getComposition('chevron');
+const maliciousTitle = clone(arrowFieldFixture);
 maliciousTitle.title = '<script>alert("test")</script>';
 const escaped = createMotionModel(maliciousTitle).staticSvg();
 assert.ok(!escaped.includes('<script>') && escaped.includes('&lt;script&gt;'));
-const input = getComposition('chevron');
+const input = clone(arrowFieldFixture);
 const snapshot = createMotionModel(input);
 const first = snapshot.pathAt(1);
 input.arrows[0].to[0] = 999;
 assert.equal(snapshot.pathAt(1), first, 'External object edits cannot mutate the running model');
 assert.notDeepEqual(clone(input), snapshot.composition);
-console.log(`Composition models passed: ${compositions.length} compositions, ${geometrySamples} finite geometry samples, 2601 original-fidelity samples, forward/reverse seams, arrows, export escaping and invalid inputs.`);
+console.log(`Composition models passed: ${compositions.length} supplied composition(s) and two internal contract fixtures, ${geometrySamples} finite geometry samples, 2601 original-fidelity samples, forward/reverse seams, arrows, export escaping and invalid inputs.`);
